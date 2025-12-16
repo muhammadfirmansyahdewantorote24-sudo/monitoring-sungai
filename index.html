@@ -96,7 +96,7 @@
             client.connect({
                 userName: MQTT_USER,
                 password: MQTT_PASS,
-                useSSL: false, // ubah true jika broker pakai wss
+                useSSL: true, // ubah true jika broker pakai wss
                 onSuccess: function () {
                     console.log("MQTT Connected");
                     document.getElementById("status").innerHTML = "Terhubung ke server";
@@ -115,3 +115,4 @@
 </body>
 
 </html>
+
