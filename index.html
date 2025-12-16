@@ -1,118 +1,84 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
-    <meta charset="UTF-8">
-    <title>Monitoring Sungai IoT</title>
+  <meta charset="UTF-8">
+  <title>Monitoring Sungai IoT</title>
 
-    <!-- MQTT WebSocket Library -->
-    <script src="https://unpkg.com/paho-mqtt/mqttws31.min.js"></script>
+  <!-- MQTT.js (PALING STABIL DI GITHUB PAGES) -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f4f6f8;
-            text-align: center;
-            padding: 40px;
-        }
-
-        .card {
-            background: #ffffff;
-            padding: 30px;
-            max-width: 400px;
-            margin: auto;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        h2 {
-            margin-bottom: 10px;
-        }
-
-        .value {
-            font-size: 32px;
-            font-weight: bold;
-            color: #007bff;
-        }
-
-        .status {
-            margin-top: 15px;
-            font-size: 18px;
-        }
-    </style>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      text-align: center;
+      padding: 40px;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      max-width: 400px;
+      margin: auto;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,.1);
+    }
+    .value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #007bff;
+    }
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 
 <body>
+  <div class="card">
+    <h2>Monitoring Ketinggian Sungai</h2>
+    <div class="value"><span id="level">--</span> cm</div>
+    <div id="status" class="status">Menghubungkan...</div>
+  </div>
 
-    <div class="card">
-        <h2>Monitoring Tinggi Muka Air Sungai</h2>
-        <p>Data Real-Time (MQTT)</p>
-        <div class="value" id="waterLevel">-- cm</div>
-        <div class="status" id="status">Menunggu data...</div>
-    </div>
+  <script>
+    /* ===== KONFIGURASI MQTT ===== */
+    const MQTT_URL = "ws://iot.midragondev.my.id:8083/mqtt";
+    const MQTT_TOPIC = "sungai/ketinggian";
 
-    <script>
-        // ================= MQTT CONFIG =================
-        const MQTT_HOST = "iot.midragondev.my.id";
-        const MQTT_PORT = 8083; // PORT WEBSOCKET (WAJIB)
-        const MQTT_USER = "nexaryn";
-        const MQTT_PASS = "31750321";
-        const MQTT_TOPIC = "iot/waterlevel/data";
+    const options = {
+      username: "nexaryn",
+      password: "31750321",
+      keepalive: 60,
+      reconnectPeriod: 2000,
+      clean: true
+    };
 
-        // ================= CLIENT =================
-        const clientID = "webClient_" + Math.floor(Math.random() * 10000);
-        const client = new Paho.MQTT.Client(
-            MQTT_HOST,
-            MQTT_PORT,
-            clientID
-        );
+    /* ===== CONNECT ===== */
+    const client = mqtt.connect(MQTT_URL, options);
 
-        // ================= CALLBACK =================
-        client.onConnectionLost = function (responseObject) {
-            document.getElementById("status").innerHTML = "Koneksi terputus";
-            console.log("Connection lost:", responseObject.errorMessage);
-        };
+    client.on("connect", () => {
+      document.getElementById("status").innerHTML = "Terhubung ke server";
+      client.subscribe(MQTT_TOPIC);
+      console.log("MQTT Connected");
+    });
 
-        client.onMessageArrived = function (message) {
-            console.log("Message arrived:", message.payloadString);
+    client.on("message", (topic, message) => {
+      const level = parseFloat(message.toString());
+      document.getElementById("level").innerHTML = level;
 
-            const data = JSON.parse(message.payloadString);
-            const level = data.water_level;
+      let status = "Aman";
+      if (level >= 40 && level < 70) status = "Siaga";
+      else if (level >= 70) status = "Bahaya";
 
-            document.getElementById("waterLevel").innerHTML = level + " cm";
+      document.getElementById("status").innerHTML = "Status: " + status;
+    });
 
-            // Status sederhana
-            if (level < 40) {
-                document.getElementById("status").innerHTML = "Status: Aman";
-            } else if (level < 70) {
-                document.getElementById("status").innerHTML = "Status: Siaga";
-            } else {
-                document.getElementById("status").innerHTML = "Status: Bahaya";
-            }
-        };
-
-        // ================= CONNECT =================
-        function connectMQTT() {
-            client.connect({
-                userName: MQTT_USER,
-                password: MQTT_PASS,
-                useSSL: true, // ubah true jika broker pakai wss
-                onSuccess: function () {
-                    console.log("MQTT Connected");
-                    document.getElementById("status").innerHTML = "Terhubung ke server";
-                    client.subscribe(MQTT_TOPIC);
-                },
-                onFailure: function (error) {
-                    document.getElementById("status").innerHTML = "Gagal koneksi MQTT";
-                    console.log("MQTT Failed:", error.errorMessage);
-                }
-            });
-        }
-
-        connectMQTT();
-    </script>
-
+    client.on("error", err => {
+      console.error("MQTT Error:", err);
+      document.getElementById("status").innerHTML = "MQTT Error";
+    });
+  </script>
 </body>
-
 </html>
 
