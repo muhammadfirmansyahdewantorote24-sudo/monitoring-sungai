@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoring Sungai IoT</title>
+
+    <!-- MQTT WebSocket Library -->
+    <script src="https://unpkg.com/paho-mqtt/mqttws31.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .card {
+            background: #ffffff;
+            padding: 30px;
+            max-width: 400px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-bottom: 10px;
+        }
+
+        .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .status {
+            margin-top: 15px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="card">
+        <h2>Monitoring Tinggi Muka Air Sungai</h2>
+        <p>Data Real-Time (MQTT)</p>
+        <div class="value" id="waterLevel">-- cm</div>
+        <div class="status" id="status">Menunggu data...</div>
+    </div>
+
+    <script>
+        // ================= MQTT CONFIG =================
+        const MQTT_HOST = "iot.midragondev.my.id";
+        const MQTT_PORT = 8083; // PORT WEBSOCKET (WAJIB)
+        const MQTT_USER = "nexaryn";
+        const MQTT_PASS = "31750321";
+        const MQTT_TOPIC = "iot/waterlevel/data";
+
+        // ================= CLIENT =================
+        const clientID = "webClient_" + Math.floor(Math.random() * 10000);
+        const client = new Paho.MQTT.Client(
+            MQTT_HOST,
+            MQTT_PORT,
+            clientID
+        );
+
+        // ================= CALLBACK =================
+        client.onConnectionLost = function (responseObject) {
+            document.getElementById("status").innerHTML = "Koneksi terputus";
+            console.log("Connection lost:", responseObject.errorMessage);
+        };
+
+        client.onMessageArrived = function (message) {
+            console.log("Message arrived:", message.payloadString);
+
+            const data = JSON.parse(message.payloadString);
+            const level = data.water_level;
+
+            document.getElementById("waterLevel").innerHTML = level + " cm";
+
+            // Status sederhana
+            if (level < 40) {
+                document.getElementById("status").innerHTML = "Status: Aman";
+            } else if (level < 70) {
+                document.getElementById("status").innerHTML = "Status: Siaga";
+            } else {
+                document.getElementById("status").innerHTML = "Status: Bahaya";
+            }
+        };
+
+        // ================= CONNECT =================
+        function connectMQTT() {
+            client.connect({
+                userName: MQTT_USER,
+                password: MQTT_PASS,
+                useSSL: false, // ubah true jika broker pakai wss
+                onSuccess: function () {
+                    console.log("MQTT Connected");
+                    document.getElementById("status").innerHTML = "Terhubung ke server";
+                    client.subscribe(MQTT_TOPIC);
+                },
+                onFailure: function (error) {
+                    document.getElementById("status").innerHTML = "Gagal koneksi MQTT";
+                    console.log("MQTT Failed:", error.errorMessage);
+                }
+            });
+        }
+
+        connectMQTT();
+    </script>
+
+</body>
+
+</html>
