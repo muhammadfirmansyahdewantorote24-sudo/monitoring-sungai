@@ -3,111 +3,145 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>River Monitoring Dashboard</title>
+<title>HydroWatch - River Monitoring</title>
 
 <!-- Tailwind -->
 <script src="https://cdn.tailwindcss.com"></script>
 
-<!-- Fonts & Icons -->
+<!-- Font -->
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<!-- PAHO MQTT (WAJIB INI, JANGAN GANTI) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+<!-- Paho MQTT (FIXED CDN) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/mqttws31.min.js"></script>
 
 <style>
-/* ==== CSS ASLI LU ==== */
 body { font-family: 'Outfit', sans-serif; }
-
-/* Glass */
-.glass-panel{
-background:rgba(255,255,255,.05);
-backdrop-filter:blur(16px);
-border:1px solid rgba(255,255,255,.1)
+.glass-panel {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.1);
 }
-
-/* Animations */
-@keyframes blob{
-0%{transform:translate(0,0) scale(1)}
-33%{transform:translate(30px,-50px) scale(1.1)}
-66%{transform:translate(-20px,20px) scale(.9)}
-100%{transform:translate(0,0) scale(1)}
+.wave {
+  background-size: 50% 100%;
+  animation: wave 4s linear infinite;
 }
-.animate-blob{animation:blob 7s infinite}
-.animation-delay-2000{animation-delay:2s}
-.animation-delay-4000{animation-delay:4s}
-
-@keyframes wave{
-0%{transform:translateX(0)}
-50%{transform:translateX(-25%)}
-100%{transform:translateX(-50%)}
-}
-.wave{
-background:url("data:image/svg+xml;utf8,<svg viewBox='0 0 1200 120' xmlns='http://www.w3.org/2000/svg'><path d='M321.39 56.44c58-10.79 114.16-30.13 172-41.86 82.39-16.72 168.19-17.73 250.45-.39C823.78 31 906.67 72 985.66 92.83c70.05 18.48 146.53 26.09 214.34 3V0H0v27.35a600.21 600.21 0 00321.39 29.09z' fill='white'/></svg>");
-background-size:50% 100%;
-animation:wave 4s linear infinite
+@keyframes wave {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 </style>
 </head>
 
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center overflow-hidden">
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
 
-<!-- ===== HTML ASLI LU (DIPERSINGKAT DEMI JAWABAN, TAPI STRUKTUR SAMA) ===== -->
-<div id="dashboard" class="container mx-auto max-w-4xl hidden">
-<h1 class="text-2xl font-bold mb-4">HydroWatch</h1>
+<!-- DASHBOARD -->
+<div class="container mx-auto px-4 py-8 max-w-4xl" id="dashboard">
 
-<div class="relative w-48 h-64 border rounded overflow-hidden mx-auto">
-<div id="water-fill" class="absolute bottom-0 w-full bg-cyan-500" style="height:0%"></div>
-<div class="absolute inset-0 flex items-center justify-center">
-<span id="water-percentage" class="text-3xl font-bold">0%</span>
+<header class="flex justify-between items-center mb-8 glass-panel p-4 rounded-2xl">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+      <i class="fa-solid fa-water"></i>
+    </div>
+    <div>
+      <h1 class="text-xl font-bold">HydroWatch</h1>
+      <p class="text-xs text-gray-400">River Monitoring System</p>
+    </div>
+  </div>
+
+  <div id="status-indicator" class="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-xs">
+    <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+    <span id="status-text">Disconnected</span>
+  </div>
+</header>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+<!-- WATER CARD -->
+<div class="glass-panel p-6 rounded-3xl flex flex-col items-center">
+<h2 class="mb-4 font-semibold">Water Level</h2>
+
+<div class="relative w-48 h-64 border border-white/20 rounded-b-3xl overflow-hidden bg-gray-800">
+  <div id="water-fill" class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-blue-600 to-cyan-400 transition-all duration-1000" style="height:0%">
+    <div class="wave absolute top-[-10px] left-0 w-[200%] h-[20px] bg-cyan-400 opacity-70"></div>
+  </div>
+  <div class="absolute inset-0 flex items-center justify-center">
+    <span id="water-percentage" class="text-4xl font-bold">0%</span>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 gap-4 mt-6 w-full">
+  <div class="bg-white/5 p-3 rounded-xl text-center">
+    <p class="text-xs text-gray-400">Depth</p>
+    <p class="text-xl font-bold"><span id="water-cm">0</span> cm</p>
+  </div>
+  <div class="bg-white/5 p-3 rounded-xl text-center">
+    <p class="text-xs text-gray-400">Status</p>
+    <p id="alert-status" class="font-bold text-emerald-400">SAFE</p>
+  </div>
 </div>
 </div>
 
-<p class="mt-4 text-center">
-Depth: <span id="water-cm">0</span> cm
-</p>
-<p class="text-center">
-Status: <span id="alert-status">SAFE</span>
-</p>
+<!-- LOG -->
+<div class="glass-panel p-6 rounded-3xl">
+<h2 class="mb-4 font-semibold">System Log</h2>
+<div id="system-log" class="text-xs text-gray-400 h-48 overflow-y-auto space-y-1">
+<div>> System initialized...</div>
+</div>
+</div>
+
+</div>
 </div>
 
 <script>
-/* ==== JS ASLI LU (DIFIX) ==== */
-let client;
-const MAX_DEPTH_CM = 200;
+/* ================= MQTT CONFIG ================= */
+const MQTT_HOST = "86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud";
+const MQTT_PORT = 8884;
+const MQTT_USER = "kandang";
+const MQTT_PASS = "Firman1502";
+const MQTT_TOPIC = "monitoring/air/level";
+const CLIENT_ID = "Web_" + Math.random().toString(16).substr(2,8);
+const MAX_DEPTH = 200;
 
-function connectMQTT(){
-client = new Paho.MQTT.Client(
-"iot.midragondev.my.id",
-8083,
-"web_"+Math.random().toString(16).substr(2,8)
-);
+/* ================= MQTT ================= */
+const client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, CLIENT_ID);
 
-client.onMessageArrived = onMessageArrived;
+client.onConnectionLost = e => log("Connection lost");
+client.onMessageArrived = msg => {
+  const dist = parseFloat(msg.payloadString);
+  const water = Math.max(0, MAX_DEPTH - dist);
+  const pct = Math.min(100, Math.round((water / MAX_DEPTH) * 100));
+
+  document.getElementById("water-cm").innerText = dist;
+  document.getElementById("water-percentage").innerText = pct + "%";
+  document.getElementById("water-fill").style.height = pct + "%";
+
+  const status = document.getElementById("alert-status");
+  if (pct > 80) status.textContent = "DANGER";
+  else if (pct > 60) status.textContent = "WARNING";
+  else status.textContent = "SAFE";
+};
+
 client.connect({
-useSSL:false,
-onSuccess:()=>{
-document.getElementById("dashboard").classList.remove("hidden");
-client.subscribe("iot/waterlevel/data");
-}
+  useSSL: true,
+  userName: MQTT_USER,
+  password: MQTT_PASS,
+  onSuccess: () => {
+    document.getElementById("status-text").innerText = "Live";
+    client.subscribe(MQTT_TOPIC);
+    log("MQTT Connected");
+  },
+  onFailure: err => log("MQTT Failed")
 });
+
+/* ================= LOG ================= */
+function log(t){
+  const d=document.createElement("div");
+  d.textContent="> "+t;
+  document.getElementById("system-log").appendChild(d);
 }
-
-function onMessageArrived(msg){
-const data = JSON.parse(msg.payloadString);
-const distance = data.water_level;
-const height = Math.max(0, MAX_DEPTH_CM - distance);
-const percent = Math.min(100, (height/MAX_DEPTH_CM)*100);
-
-document.getElementById("water-cm").innerText = distance;
-document.getElementById("water-percentage").innerText = Math.round(percent)+"%";
-document.getElementById("water-fill").style.height = percent+"%";
-
-document.getElementById("alert-status").innerText =
-percent>80?"CRITICAL":percent>60?"WARNING":"SAFE";
-}
-
-connectMQTT();
 </script>
 
 </body>
