@@ -101,8 +101,8 @@ const MAX_DEPTH = 200;
 
 /* CONNECT */
 const client = mqtt.connect(MQTT_URL, {
-  username: kandang,
-  password: Firman1502,
+  username: USER,
+  password: PASS
 });
 
 client.on("connect", () => {
