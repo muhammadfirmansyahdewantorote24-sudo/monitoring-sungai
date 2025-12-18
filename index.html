@@ -14,8 +14,8 @@
 <!-- Icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<!-- ✅ PAHO MQTT (WAJIB DEFER) -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/mqttws31.min.js"></script>
+<!-- ✅ MQTT.JS (STABIL DI GITHUB PAGES & ANTIGRAVITY) -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
 body { font-family: 'Outfit', sans-serif; }
@@ -37,7 +37,7 @@ body { font-family: 'Outfit', sans-serif; }
 
 <body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
 
-<div class="container mx-auto px-4 py-8 max-w-4xl" id="dashboard">
+<div class="container mx-auto px-4 py-8 max-w-4xl">
 
 <header class="flex justify-between items-center mb-8 glass-panel p-4 rounded-2xl">
   <div class="flex items-center gap-3">
@@ -50,9 +50,8 @@ body { font-family: 'Outfit', sans-serif; }
     </div>
   </div>
 
-  <div id="status-indicator" class="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-xs">
-    <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-    <span id="status-text">Disconnected</span>
+  <div id="status" class="px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-xs">
+    Disconnected
   </div>
 </header>
 
@@ -66,25 +65,25 @@ body { font-family: 'Outfit', sans-serif; }
     <div class="wave absolute top-[-10px] left-0 w-[200%] h-[20px] bg-cyan-400 opacity-70"></div>
   </div>
   <div class="absolute inset-0 flex items-center justify-center">
-    <span id="water-percentage" class="text-4xl font-bold">0%</span>
+    <span id="percentage" class="text-4xl font-bold">0%</span>
   </div>
 </div>
 
 <div class="grid grid-cols-2 gap-4 mt-6 w-full">
   <div class="bg-white/5 p-3 rounded-xl text-center">
     <p class="text-xs text-gray-400">Depth</p>
-    <p class="text-xl font-bold"><span id="water-cm">0</span> cm</p>
+    <p class="text-xl font-bold"><span id="cm">0</span> cm</p>
   </div>
   <div class="bg-white/5 p-3 rounded-xl text-center">
     <p class="text-xs text-gray-400">Status</p>
-    <p id="alert-status" class="font-bold text-emerald-400">SAFE</p>
+    <p id="alert" class="font-bold text-emerald-400">SAFE</p>
   </div>
 </div>
 </div>
 
 <div class="glass-panel p-6 rounded-3xl">
 <h2 class="mb-4 font-semibold">System Log</h2>
-<div id="system-log" class="text-xs text-gray-400 h-48 overflow-y-auto space-y-1">
+<div id="log" class="text-xs text-gray-400 h-48 overflow-y-auto space-y-1">
 <div>> System initialized...</div>
 </div>
 </div>
@@ -93,57 +92,45 @@ body { font-family: 'Outfit', sans-serif; }
 </div>
 
 <script>
-/* ================= RUN AFTER LOAD ================= */
-window.onload = function () {
-
-/* MQTT CONFIG */
-const MQTT_HOST = "86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud";
-const MQTT_PORT = 8884;
-const MQTT_USER = "kandang";
-const MQTT_PASS = "Firman1502";
-const MQTT_TOPIC = "monitoring/air/level";
-const CLIENT_ID = "Web_" + Math.random().toString(16).substr(2,8);
+/* ================= MQTT CONFIG ================= */
+const MQTT_URL = "wss://86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud:8884/mqtt";
+const TOPIC = "monitoring/air/level";
+const USER = "kandang";
+const PASS = "Firman1502";
 const MAX_DEPTH = 200;
 
-/* INIT CLIENT */
-const client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, CLIENT_ID);
-
-client.onConnectionLost = () => log("Connection lost");
-
-client.onMessageArrived = msg => {
-  const dist = parseFloat(msg.payloadString);
-  const water = Math.max(0, MAX_DEPTH - dist);
-  const pct = Math.min(100, Math.round((water / MAX_DEPTH) * 100));
-
-  document.getElementById("water-cm").innerText = dist;
-  document.getElementById("water-percentage").innerText = pct + "%";
-  document.getElementById("water-fill").style.height = pct + "%";
-
-  const status = document.getElementById("alert-status");
-  status.textContent = pct > 80 ? "DANGER" : pct > 60 ? "WARNING" : "SAFE";
-};
-
 /* CONNECT */
-client.connect({
-  useSSL: true,
-  userName: kandang,
+const client = mqtt.connect(MQTT_URL, {
+  username: kandang,
   password: Firman1502,
-  onSuccess: () => {
-    document.getElementById("status-text").innerText = "Live";
-    client.subscribe(MQTT_TOPIC);
-    log("MQTT Connected");
-  },
-  onFailure: () => log("MQTT Failed")
 });
 
-/* LOG */
+client.on("connect", () => {
+  document.getElementById("status").innerText = "Live";
+  document.getElementById("status").className =
+    "px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs";
+  log("MQTT Connected");
+  client.subscribe(TOPIC);
+});
+
+client.on("message", (topic, msg) => {
+  const distance = parseFloat(msg.toString());
+  const level = Math.max(0, MAX_DEPTH - distance);
+  const pct = Math.min(100, Math.round(level / MAX_DEPTH * 100));
+
+  document.getElementById("cm").innerText = distance;
+  document.getElementById("percentage").innerText = pct + "%";
+  document.getElementById("water-fill").style.height = pct + "%";
+
+  const alert = document.getElementById("alert");
+  alert.innerText = pct > 80 ? "DANGER" : pct > 60 ? "WARNING" : "SAFE";
+});
+
 function log(t){
   const d=document.createElement("div");
-  d.textContent="> "+t;
-  document.getElementById("system-log").appendChild(d);
+  d.innerText="> "+t;
+  document.getElementById("log").appendChild(d);
 }
-
-};
 </script>
 
 </body>
