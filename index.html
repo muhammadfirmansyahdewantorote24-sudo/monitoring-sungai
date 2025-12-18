@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>Monitoring Sungai IoT</title>
 
-  <!-- MQTT.js (PALING STABIL DI GITHUB PAGES) -->
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <!-- MQTT Paho (WAJIB sebelum script) -->
+  <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
 
   <style>
     body {
@@ -17,17 +17,18 @@
     .card {
       background: white;
       padding: 30px;
-      max-width: 400px;
+      max-width: 420px;
       margin: auto;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0,0,0,.1);
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
     }
     .value {
-      font-size: 32px;
+      font-size: 36px;
       font-weight: bold;
       color: #007bff;
     }
     .status {
+      font-size: 20px;
       margin-top: 10px;
       font-weight: bold;
     }
@@ -35,51 +36,79 @@
 </head>
 
 <body>
+
   <div class="card">
-    <h2>Monitoring Ketinggian Sungai</h2>
-    <div class="value"><span id="level">--</span> cm</div>
-    <div id="status" class="status">Menghubungkan...</div>
+    <h2>Monitoring Ketinggian Air</h2>
+    <div class="value" id="level">-- cm</div>
+    <div class="status" id="status">Menghubungkan...</div>
   </div>
 
-  <script>
-    /* ===== KONFIGURASI MQTT ===== */
-    const MQTT_URL = "wss://iot.midragondev.my.id:8083/mqtt";
-    const MQTT_TOPIC = "sungai/ketinggian";
+<script>
+/* ================== KONFIGURASI MQTT ================== */
+const MQTT_HOST = "86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud";
+const MQTT_PORT = 8884; // WSS
+const MQTT_USER = "ISI_USERNAME_HIVEMQ";
+const MQTT_PASS = "ISI_PASSWORD_HIVEMQ";
 
-    const options = {
-      username: "nexaryn",
-      password: "31750321",
-      keepalive: 60,
-      reconnectPeriod: 2000,
-      clean: true
-    };
+const TOPIC_LEVEL  = "monitoring/air/level";
+const TOPIC_BUZZER = "monitoring/air/buzzer";
 
-    /* ===== CONNECT ===== */
-    const client = mqtt.connect(MQTT_URL, options);
+/* ================== MQTT CLIENT ================== */
+const clientID = "webClient-" + Math.random().toString(16).substr(2, 8);
+const client = new Paho.MQTT.Client(
+  MQTT_HOST,
+  MQTT_PORT,
+  "/mqtt",
+  clientID
+);
 
-    client.on("connect", () => {
-      document.getElementById("status").innerHTML = "Terhubung ke server";
-      client.subscribe(MQTT_TOPIC);
-      console.log("MQTT Connected");
-    });
+/* ================== CALLBACK ================== */
+client.onConnectionLost = function (response) {
+  document.getElementById("status").innerHTML = "Koneksi terputus";
+};
 
-    client.on("message", (topic, message) => {
-      const level = parseFloat(message.toString());
-      document.getElementById("level").innerHTML = level;
+client.onMessageArrived = function (message) {
+  if (message.destinationName === TOPIC_LEVEL) {
+    const level = parseFloat(message.payloadString);
+    document.getElementById("level").innerHTML = level + " cm";
 
-      let status = "Aman";
-      if (level >= 40 && level < 70) status = "Siaga";
-      else if (level >= 70) status = "Bahaya";
+    if (level < 40) {
+      setStatus("AMAN", "green", "OFF");
+    } else if (level < 70) {
+      setStatus("SIAGA", "orange", "SLOW");
+    } else {
+      setStatus("BAHAYA", "red", "FAST");
+    }
+  }
+};
 
-      document.getElementById("status").innerHTML = "Status: " + status;
-    });
+/* ================== FUNGSI ================== */
+function setStatus(text, color, buzzerMode) {
+  const statusEl = document.getElementById("status");
+  statusEl.innerHTML = "Status: " + text;
+  statusEl.style.color = color;
 
-    client.on("error", err => {
-      console.error("MQTT Error:", err);
-      document.getElementById("status").innerHTML = "MQTT Error";
-    });
-  </script>
+  const buzzerMsg = new Paho.MQTT.Message(buzzerMode);
+  buzzerMsg.destinationName = TOPIC_BUZZER;
+  client.send(buzzerMsg);
+}
+
+/* ================== CONNECT ================== */
+client.connect({
+  useSSL: true,
+  userName: kandang,
+  password: Firman1502,
+  onSuccess: function () {
+    document.getElementById("status").innerHTML = "Terhubung ke MQTT";
+    client.subscribe(TOPIC_LEVEL);
+  },
+  onFailure: function (err) {
+    document.getElementById("status").innerHTML = "Gagal koneksi MQTT";
+    console.log(err.errorMessage);
+  }
+});
+</script>
+
 </body>
 </html>
-
 
