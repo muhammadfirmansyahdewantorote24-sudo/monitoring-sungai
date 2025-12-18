@@ -1,23 +1,98 @@
-<!-- MQTT.JS (WAJIB ADA, JANGAN DIHAPUS) -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Monitoring Sungai IoT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- MQTT.JS (WAJIB, JANGAN DIHAPUS) -->
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
+<link rel="icon" href="data:,">
+
+<style>
+/* ===== CSS ASLI LU (TIDAK DIUBAH) ===== */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes blob {
+    0% { transform: translate(0px, 0px) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+    100% { transform: translate(0px, 0px) scale(1); }
+}
+
+.animate-blob { animation: blob 7s infinite; }
+.animation-delay-2000 { animation-delay: 2s; }
+.animation-delay-4000 { animation-delay: 4s; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #020617, #020617);
+    color: white;
+    font-family: system-ui, sans-serif;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ===== DASHBOARD ===== -->
+<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;">
+<div class="glass-panel" style="width:340px;padding:24px;border-radius:20px;">
+
+    <h2 style="margin-top:0">Monitoring Sungai</h2>
+
+    <div id="status-indicator"
+         style="margin-bottom:14px"
+         class="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium">
+        <span id="status-text">Disconnected</span>
+    </div>
+
+    <div style="font-size:14px;opacity:.7">Ketinggian Air</div>
+    <div style="font-size:42px;font-weight:bold">
+        <span id="water-cm">--</span> cm
+    </div>
+
+    <div style="margin-top:16px">
+        <div style="height:160px;width:60px;border-radius:20px;border:2px solid rgba(255,255,255,.2);margin:auto;overflow:hidden;">
+            <div id="water-fill"
+                 style="height:0%;background:linear-gradient(to top,#38bdf8,#0ea5e9);transition:height .5s">
+            </div>
+        </div>
+        <div style="margin-top:8px;font-size:14px">
+            <span id="water-percentage">0%</span>
+        </div>
+    </div>
+
+    <div style="margin-top:12px;font-weight:bold" id="alert-status">SAFE</div>
+
+</div>
+</div>
+
+<!-- ===== MQTT SCRIPT FINAL (TANPA PAHO) ===== -->
 <script>
-/* ================= MQTT CONFIG ================= */
+/* ========= MQTT CONFIG ========= */
 const MQTT_URL = "wss://86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud:8884";
 const MQTT_OPTIONS = {
   protocol: "wss",
   path: "/mqtt",
   username: "kandang",
   password: "Firman1502",
-  keepalive: 30,
-  reconnectPeriod: 2000,
-  clean: true
+  clean: true,
+  reconnectPeriod: 2000
 };
 
 const TOPIC = "monitoring/air/level";
 const MAX_DEPTH_CM = 200;
 
-/* ================= CONNECT ================= */
+/* ========= CONNECT ========= */
 const client = mqtt.connect(MQTT_URL, MQTT_OPTIONS);
 
 client.on("connect", () => {
@@ -26,12 +101,12 @@ client.on("connect", () => {
   setStatus(true);
 });
 
-client.on("message", (topic, message) => {
+client.on("message", (_, message) => {
   const distance = parseFloat(message.toString());
   if (isNaN(distance)) return;
 
-  const waterHeight = Math.max(0, MAX_DEPTH_CM - distance);
-  const percent = Math.min(100, Math.round((waterHeight / MAX_DEPTH_CM) * 100));
+  const water = Math.max(0, MAX_DEPTH_CM - distance);
+  const percent = Math.min(100, Math.round((water / MAX_DEPTH_CM) * 100));
 
   document.getElementById("water-cm").innerText = distance;
   document.getElementById("water-percentage").innerText = percent + "%";
@@ -40,36 +115,33 @@ client.on("message", (topic, message) => {
   const alert = document.getElementById("alert-status");
   if (percent >= 80) {
     alert.innerText = "CRITICAL";
-    alert.className = "text-sm font-bold text-red-500";
+    alert.style.color = "#ef4444";
   } else if (percent >= 60) {
     alert.innerText = "WARNING";
-    alert.className = "text-sm font-bold text-yellow-400";
+    alert.style.color = "#facc15";
   } else {
     alert.innerText = "SAFE";
-    alert.className = "text-sm font-bold text-emerald-400";
+    alert.style.color = "#22c55e";
   }
 });
 
-client.on("error", (err) => {
-  console.error("MQTT ERROR:", err);
-  setStatus(false);
-});
+client.on("error", () => setStatus(false));
 
-/* ================= UI STATUS ================= */
-function setStatus(online) {
-  const indicator = document.getElementById("status-indicator");
-  const text = document.getElementById("status-text");
+function setStatus(ok) {
+  const ind = document.getElementById("status-indicator");
+  const txt = document.getElementById("status-text");
 
-  if (!indicator || !text) return;
-
-  if (online) {
-    indicator.className =
-      "flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium";
-    text.innerText = "Live System";
+  if (ok) {
+    ind.style.background = "rgba(34,197,94,.2)";
+    ind.style.borderColor = "rgba(34,197,94,.4)";
+    txt.innerText = "Live System";
   } else {
-    indicator.className =
-      "flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium";
-    text.innerText = "Disconnected";
+    ind.style.background = "rgba(239,68,68,.2)";
+    ind.style.borderColor = "rgba(239,68,68,.4)";
+    txt.innerText = "Disconnected";
   }
 }
 </script>
+
+</body>
+</html>
