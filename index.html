@@ -1,52 +1,114 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Monitoring Sungai IoT</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HydroWatch - Monitoring Sungai</title>
 
-  <!-- MQTT.JS (STABIL & AMAN) -->
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<!-- MQTT.JS -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-  <link rel="icon" href="data:,">
+<style>
+body {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #eef2f5;
-      text-align: center;
-      padding-top: 50px;
-    }
-    .box {
-      background: white;
-      padding: 30px;
-      max-width: 420px;
-      margin: auto;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    }
-    .value {
-      font-size: 38px;
-      font-weight: bold;
-    }
-    .status {
-      font-size: 22px;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-  </style>
+.container {
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(15px);
+  padding: 30px;
+  width: 380px;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  background: #1abc9c;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.title h2 {
+  margin: 0;
+}
+.title span {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.card {
+  background: rgba(0,0,0,0.25);
+  padding: 20px;
+  border-radius: 15px;
+  margin-top: 15px;
+  text-align: center;
+}
+
+.level {
+  font-size: 52px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.status {
+  font-size: 18px;
+  margin-top: 5px;
+}
+
+.log {
+  margin-top: 15px;
+  font-size: 12px;
+  opacity: 0.8;
+  text-align: left;
+}
+</style>
 </head>
 
 <body>
 
-<div class="box">
-  <h2>Monitoring Ketinggian Air</h2>
-  <div class="value" id="level">-- cm</div>
-  <div class="status" id="status">Menghubungkan...</div>
+<div class="container">
+  <div class="header">
+    <div class="logo">🌊</div>
+    <div class="title">
+      <h2>HydroWatch</h2>
+      <span>River Monitoring System</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Water Level</h3>
+    <div class="level" id="level">-- cm</div>
+    <div class="status" id="status">Connecting...</div>
+  </div>
+
+  <div class="card log" id="log">
+    System initializing...
+  </div>
 </div>
 
 <script>
-/* ================== KONFIGURASI ================== */
+/* ================= MQTT CONFIG ================= */
 const MQTT_URL = "wss://86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud:8884/mqtt";
+const TOPIC = "monitoring/air/level";
 
 const options = {
   username: "kandang",
@@ -55,14 +117,21 @@ const options = {
   connectTimeout: 4000
 };
 
-const TOPIC = "monitoring/air/level";
+const logBox = document.getElementById("log");
 
-/* ================== CONNECT ================== */
+function log(msg) {
+  logBox.innerHTML += "<br>› " + msg;
+}
+
+/* ================= CONNECT ================= */
 const client = mqtt.connect(MQTT_URL, options);
 
 client.on("connect", () => {
   document.getElementById("status").innerHTML = "MQTT Connected";
+  document.getElementById("status").style.color = "#1abc9c";
+  log("MQTT Connected");
   client.subscribe(TOPIC);
+  log("Subscribed to " + TOPIC);
 });
 
 client.on("message", (topic, message) => {
@@ -72,20 +141,21 @@ client.on("message", (topic, message) => {
   const statusEl = document.getElementById("status");
   if (level < 40) {
     statusEl.innerHTML = "Status: AMAN";
-    statusEl.style.color = "green";
+    statusEl.style.color = "#2ecc71";
   } else if (level < 70) {
     statusEl.innerHTML = "Status: SIAGA";
-    statusEl.style.color = "orange";
+    statusEl.style.color = "#f1c40f";
   } else {
     statusEl.innerHTML = "Status: BAHAYA";
-    statusEl.style.color = "red";
+    statusEl.style.color = "#e74c3c";
   }
 });
 
 client.on("error", (err) => {
-  console.log("MQTT Error:", err);
+  log("MQTT Error: " + err.message);
 });
 </script>
 
 </body>
 </html>
+
