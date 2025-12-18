@@ -4,10 +4,9 @@
   <meta charset="UTF-8">
   <title>Monitoring Sungai IoT</title>
 
-  <!-- WAJIB: PAHO MQTT -->
-  <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
+  <!-- MQTT.JS (STABIL & AMAN) -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-  <!-- OPTIONAL: hilangkan error favicon -->
   <link rel="icon" href="data:,">
 
   <style>
@@ -20,18 +19,19 @@
     .box {
       background: white;
       padding: 30px;
-      max-width: 400px;
+      max-width: 420px;
       margin: auto;
-      border-radius: 10px;
+      border-radius: 12px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     }
     .value {
-      font-size: 40px;
+      font-size: 38px;
       font-weight: bold;
     }
     .status {
       font-size: 22px;
       margin-top: 10px;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -46,53 +46,44 @@
 
 <script>
 /* ================== KONFIGURASI ================== */
-const MQTT_HOST = "86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud";
-const MQTT_PORT = 8884; // WSS
-const MQTT_USER = "USERNAME_HIVEMQ";
-const MQTT_PASS = "PASSWORD_HIVEMQ";
-const TOPIC_LEVEL = "monitoring/air/level";
+const MQTT_URL = "wss://86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud:8884/mqtt";
 
-/* ================== CLIENT ================== */
-const clientID = "web-" + Math.random().toString(16).substr(2, 8);
-const client = new Paho.MQTT.Client(
-  MQTT_HOST,
-  MQTT_PORT,
-  "/mqtt",
-  clientID
-);
-
-client.onConnectionLost = function () {
-  document.getElementById("status").innerHTML = "Koneksi terputus";
+const options = {
+  username: "kandang",
+  password: "Firman1502",
+  clean: true,
+  connectTimeout: 4000
 };
 
-client.onMessageArrived = function (msg) {
-  const level = parseFloat(msg.payloadString);
+const TOPIC = "monitoring/air/level";
+
+/* ================== CONNECT ================== */
+const client = mqtt.connect(MQTT_URL, options);
+
+client.on("connect", () => {
+  document.getElementById("status").innerHTML = "MQTT Connected";
+  client.subscribe(TOPIC);
+});
+
+client.on("message", (topic, message) => {
+  const level = parseFloat(message.toString());
   document.getElementById("level").innerHTML = level + " cm";
 
+  const statusEl = document.getElementById("status");
   if (level < 40) {
-    document.getElementById("status").innerHTML = "Status: AMAN";
-    document.getElementById("status").style.color = "green";
+    statusEl.innerHTML = "Status: AMAN";
+    statusEl.style.color = "green";
   } else if (level < 70) {
-    document.getElementById("status").innerHTML = "Status: SIAGA";
-    document.getElementById("status").style.color = "orange";
+    statusEl.innerHTML = "Status: SIAGA";
+    statusEl.style.color = "orange";
   } else {
-    document.getElementById("status").innerHTML = "Status: BAHAYA";
-    document.getElementById("status").style.color = "red";
+    statusEl.innerHTML = "Status: BAHAYA";
+    statusEl.style.color = "red";
   }
-};
+});
 
-client.connect({
-  useSSL: true,
-  userName: kandang,
-  password: Firman1502,
-  onSuccess: function () {
-    document.getElementById("status").innerHTML = "Terhubung ke MQTT";
-    client.subscribe(TOPIC_LEVEL);
-  },
-  onFailure: function (err) {
-    document.getElementById("status").innerHTML = "Gagal koneksi";
-    console.log(err.errorMessage);
-  }
+client.on("error", (err) => {
+  console.log("MQTT Error:", err);
 });
 </script>
 
