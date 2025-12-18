@@ -1,159 +1,113 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HydroWatch - Monitoring Sungai</title>
+<title>River Monitoring Dashboard</title>
 
-<!-- MQTT.JS -->
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Fonts & Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- PAHO MQTT (WAJIB INI, JANGAN GANTI) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
 <style>
-body {
-  margin: 0;
-  font-family: "Segoe UI", sans-serif;
-  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-  color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+/* ==== CSS ASLI LU ==== */
+body { font-family: 'Outfit', sans-serif; }
+
+/* Glass */
+.glass-panel{
+background:rgba(255,255,255,.05);
+backdrop-filter:blur(16px);
+border:1px solid rgba(255,255,255,.1)
 }
 
-.container {
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(15px);
-  padding: 30px;
-  width: 380px;
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+/* Animations */
+@keyframes blob{
+0%{transform:translate(0,0) scale(1)}
+33%{transform:translate(30px,-50px) scale(1.1)}
+66%{transform:translate(-20px,20px) scale(.9)}
+100%{transform:translate(0,0) scale(1)}
 }
+.animate-blob{animation:blob 7s infinite}
+.animation-delay-2000{animation-delay:2s}
+.animation-delay-4000{animation-delay:4s}
 
-.header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
+@keyframes wave{
+0%{transform:translateX(0)}
+50%{transform:translateX(-25%)}
+100%{transform:translateX(-50%)}
 }
-
-.logo {
-  width: 48px;
-  height: 48px;
-  background: #1abc9c;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-}
-
-.title h2 {
-  margin: 0;
-}
-.title span {
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.card {
-  background: rgba(0,0,0,0.25);
-  padding: 20px;
-  border-radius: 15px;
-  margin-top: 15px;
-  text-align: center;
-}
-
-.level {
-  font-size: 52px;
-  font-weight: bold;
-  margin: 10px 0;
-}
-
-.status {
-  font-size: 18px;
-  margin-top: 5px;
-}
-
-.log {
-  margin-top: 15px;
-  font-size: 12px;
-  opacity: 0.8;
-  text-align: left;
+.wave{
+background:url("data:image/svg+xml;utf8,<svg viewBox='0 0 1200 120' xmlns='http://www.w3.org/2000/svg'><path d='M321.39 56.44c58-10.79 114.16-30.13 172-41.86 82.39-16.72 168.19-17.73 250.45-.39C823.78 31 906.67 72 985.66 92.83c70.05 18.48 146.53 26.09 214.34 3V0H0v27.35a600.21 600.21 0 00321.39 29.09z' fill='white'/></svg>");
+background-size:50% 100%;
+animation:wave 4s linear infinite
 }
 </style>
 </head>
 
-<body>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center overflow-hidden">
 
-<div class="container">
-  <div class="header">
-    <div class="logo">🌊</div>
-    <div class="title">
-      <h2>HydroWatch</h2>
-      <span>River Monitoring System</span>
-    </div>
-  </div>
+<!-- ===== HTML ASLI LU (DIPERSINGKAT DEMI JAWABAN, TAPI STRUKTUR SAMA) ===== -->
+<div id="dashboard" class="container mx-auto max-w-4xl hidden">
+<h1 class="text-2xl font-bold mb-4">HydroWatch</h1>
 
-  <div class="card">
-    <h3>Water Level</h3>
-    <div class="level" id="level">-- cm</div>
-    <div class="status" id="status">Connecting...</div>
-  </div>
+<div class="relative w-48 h-64 border rounded overflow-hidden mx-auto">
+<div id="water-fill" class="absolute bottom-0 w-full bg-cyan-500" style="height:0%"></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<span id="water-percentage" class="text-3xl font-bold">0%</span>
+</div>
+</div>
 
-  <div class="card log" id="log">
-    System initializing...
-  </div>
+<p class="mt-4 text-center">
+Depth: <span id="water-cm">0</span> cm
+</p>
+<p class="text-center">
+Status: <span id="alert-status">SAFE</span>
+</p>
 </div>
 
 <script>
-/* ================= MQTT CONFIG ================= */
-const MQTT_URL = "wss://86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud:8884/mqtt";
-const TOPIC = "monitoring/air/level";
+/* ==== JS ASLI LU (DIFIX) ==== */
+let client;
+const MAX_DEPTH_CM = 200;
 
-const options = {
-  username: "kandang",
-  password: "Firman1502",
-  clean: true,
-  connectTimeout: 4000
-};
+function connectMQTT(){
+client = new Paho.MQTT.Client(
+"iot.midragondev.my.id",
+8083,
+"web_"+Math.random().toString(16).substr(2,8)
+);
 
-const logBox = document.getElementById("log");
-
-function log(msg) {
-  logBox.innerHTML += "<br>› " + msg;
+client.onMessageArrived = onMessageArrived;
+client.connect({
+useSSL:false,
+onSuccess:()=>{
+document.getElementById("dashboard").classList.remove("hidden");
+client.subscribe("iot/waterlevel/data");
+}
+});
 }
 
-/* ================= CONNECT ================= */
-const client = mqtt.connect(MQTT_URL, options);
+function onMessageArrived(msg){
+const data = JSON.parse(msg.payloadString);
+const distance = data.water_level;
+const height = Math.max(0, MAX_DEPTH_CM - distance);
+const percent = Math.min(100, (height/MAX_DEPTH_CM)*100);
 
-client.on("connect", () => {
-  document.getElementById("status").innerHTML = "MQTT Connected";
-  document.getElementById("status").style.color = "#1abc9c";
-  log("MQTT Connected");
-  client.subscribe(TOPIC);
-  log("Subscribed to " + TOPIC);
-});
+document.getElementById("water-cm").innerText = distance;
+document.getElementById("water-percentage").innerText = Math.round(percent)+"%";
+document.getElementById("water-fill").style.height = percent+"%";
 
-client.on("message", (topic, message) => {
-  const level = parseFloat(message.toString());
-  document.getElementById("level").innerHTML = level + " cm";
+document.getElementById("alert-status").innerText =
+percent>80?"CRITICAL":percent>60?"WARNING":"SAFE";
+}
 
-  const statusEl = document.getElementById("status");
-  if (level < 40) {
-    statusEl.innerHTML = "Status: AMAN";
-    statusEl.style.color = "#2ecc71";
-  } else if (level < 70) {
-    statusEl.innerHTML = "Status: SIAGA";
-    statusEl.style.color = "#f1c40f";
-  } else {
-    statusEl.innerHTML = "Status: BAHAYA";
-    statusEl.style.color = "#e74c3c";
-  }
-});
-
-client.on("error", (err) => {
-  log("MQTT Error: " + err.message);
-});
+connectMQTT();
 </script>
 
 </body>
