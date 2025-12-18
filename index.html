@@ -4,57 +4,56 @@
   <meta charset="UTF-8">
   <title>Monitoring Sungai IoT</title>
 
-  <!-- MQTT Paho (WAJIB sebelum script) -->
+  <!-- WAJIB: PAHO MQTT -->
   <script src="https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt-min.js"></script>
+
+  <!-- OPTIONAL: hilangkan error favicon -->
+  <link rel="icon" href="data:,">
 
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f6f8;
+      background: #eef2f5;
       text-align: center;
-      padding: 40px;
+      padding-top: 50px;
     }
-    .card {
+    .box {
       background: white;
       padding: 30px;
-      max-width: 420px;
+      max-width: 400px;
       margin: auto;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     }
     .value {
-      font-size: 36px;
+      font-size: 40px;
       font-weight: bold;
-      color: #007bff;
     }
     .status {
-      font-size: 20px;
+      font-size: 22px;
       margin-top: 10px;
-      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
 
-  <div class="card">
-    <h2>Monitoring Ketinggian Air</h2>
-    <div class="value" id="level">-- cm</div>
-    <div class="status" id="status">Menghubungkan...</div>
-  </div>
+<div class="box">
+  <h2>Monitoring Ketinggian Air</h2>
+  <div class="value" id="level">-- cm</div>
+  <div class="status" id="status">Menghubungkan...</div>
+</div>
 
 <script>
-/* ================== KONFIGURASI MQTT ================== */
+/* ================== KONFIGURASI ================== */
 const MQTT_HOST = "86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884; // WSS
-const MQTT_USER = "ISI_USERNAME_HIVEMQ";
-const MQTT_PASS = "ISI_PASSWORD_HIVEMQ";
+const MQTT_USER = "USERNAME_HIVEMQ";
+const MQTT_PASS = "PASSWORD_HIVEMQ";
+const TOPIC_LEVEL = "monitoring/air/level";
 
-const TOPIC_LEVEL  = "monitoring/air/level";
-const TOPIC_BUZZER = "monitoring/air/buzzer";
-
-/* ================== MQTT CLIENT ================== */
-const clientID = "webClient-" + Math.random().toString(16).substr(2, 8);
+/* ================== CLIENT ================== */
+const clientID = "web-" + Math.random().toString(16).substr(2, 8);
 const client = new Paho.MQTT.Client(
   MQTT_HOST,
   MQTT_PORT,
@@ -62,38 +61,26 @@ const client = new Paho.MQTT.Client(
   clientID
 );
 
-/* ================== CALLBACK ================== */
-client.onConnectionLost = function (response) {
+client.onConnectionLost = function () {
   document.getElementById("status").innerHTML = "Koneksi terputus";
 };
 
-client.onMessageArrived = function (message) {
-  if (message.destinationName === TOPIC_LEVEL) {
-    const level = parseFloat(message.payloadString);
-    document.getElementById("level").innerHTML = level + " cm";
+client.onMessageArrived = function (msg) {
+  const level = parseFloat(msg.payloadString);
+  document.getElementById("level").innerHTML = level + " cm";
 
-    if (level < 40) {
-      setStatus("AMAN", "green", "OFF");
-    } else if (level < 70) {
-      setStatus("SIAGA", "orange", "SLOW");
-    } else {
-      setStatus("BAHAYA", "red", "FAST");
-    }
+  if (level < 40) {
+    document.getElementById("status").innerHTML = "Status: AMAN";
+    document.getElementById("status").style.color = "green";
+  } else if (level < 70) {
+    document.getElementById("status").innerHTML = "Status: SIAGA";
+    document.getElementById("status").style.color = "orange";
+  } else {
+    document.getElementById("status").innerHTML = "Status: BAHAYA";
+    document.getElementById("status").style.color = "red";
   }
 };
 
-/* ================== FUNGSI ================== */
-function setStatus(text, color, buzzerMode) {
-  const statusEl = document.getElementById("status");
-  statusEl.innerHTML = "Status: " + text;
-  statusEl.style.color = color;
-
-  const buzzerMsg = new Paho.MQTT.Message(buzzerMode);
-  buzzerMsg.destinationName = TOPIC_BUZZER;
-  client.send(buzzerMsg);
-}
-
-/* ================== CONNECT ================== */
 client.connect({
   useSSL: true,
   userName: kandang,
@@ -103,7 +90,7 @@ client.connect({
     client.subscribe(TOPIC_LEVEL);
   },
   onFailure: function (err) {
-    document.getElementById("status").innerHTML = "Gagal koneksi MQTT";
+    document.getElementById("status").innerHTML = "Gagal koneksi";
     console.log(err.errorMessage);
   }
 });
