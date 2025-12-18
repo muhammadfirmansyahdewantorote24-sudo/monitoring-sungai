@@ -1,137 +1,75 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HydroWatch - River Monitoring</title>
-
-<!-- Tailwind -->
-<script src="https://cdn.tailwindcss.com"></script>
-
-<!-- Font -->
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-<!-- Icons -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-<!-- ✅ MQTT.JS (STABIL DI GITHUB PAGES & ANTIGRAVITY) -->
+<!-- MQTT.JS (WAJIB ADA, JANGAN DIHAPUS) -->
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
-<style>
-body { font-family: 'Outfit', sans-serif; }
-.glass-panel {
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.1);
-}
-.wave {
-  background-size: 50% 100%;
-  animation: wave 4s linear infinite;
-}
-@keyframes wave {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-</style>
-</head>
-
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
-
-<div class="container mx-auto px-4 py-8 max-w-4xl">
-
-<header class="flex justify-between items-center mb-8 glass-panel p-4 rounded-2xl">
-  <div class="flex items-center gap-3">
-    <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
-      <i class="fa-solid fa-water"></i>
-    </div>
-    <div>
-      <h1 class="text-xl font-bold">HydroWatch</h1>
-      <p class="text-xs text-gray-400">River Monitoring System</p>
-    </div>
-  </div>
-
-  <div id="status" class="px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-xs">
-    Disconnected
-  </div>
-</header>
-
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-<div class="glass-panel p-6 rounded-3xl flex flex-col items-center">
-<h2 class="mb-4 font-semibold">Water Level</h2>
-
-<div class="relative w-48 h-64 border border-white/20 rounded-b-3xl overflow-hidden bg-gray-800">
-  <div id="water-fill" class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-blue-600 to-cyan-400 transition-all duration-1000" style="height:0%">
-    <div class="wave absolute top-[-10px] left-0 w-[200%] h-[20px] bg-cyan-400 opacity-70"></div>
-  </div>
-  <div class="absolute inset-0 flex items-center justify-center">
-    <span id="percentage" class="text-4xl font-bold">0%</span>
-  </div>
-</div>
-
-<div class="grid grid-cols-2 gap-4 mt-6 w-full">
-  <div class="bg-white/5 p-3 rounded-xl text-center">
-    <p class="text-xs text-gray-400">Depth</p>
-    <p class="text-xl font-bold"><span id="cm">0</span> cm</p>
-  </div>
-  <div class="bg-white/5 p-3 rounded-xl text-center">
-    <p class="text-xs text-gray-400">Status</p>
-    <p id="alert" class="font-bold text-emerald-400">SAFE</p>
-  </div>
-</div>
-</div>
-
-<div class="glass-panel p-6 rounded-3xl">
-<h2 class="mb-4 font-semibold">System Log</h2>
-<div id="log" class="text-xs text-gray-400 h-48 overflow-y-auto space-y-1">
-<div>> System initialized...</div>
-</div>
-</div>
-
-</div>
-</div>
 
 <script>
 /* ================= MQTT CONFIG ================= */
-const MQTT_URL = "wss://86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud:8884/mqtt";
-const TOPIC = "monitoring/air/level";
-const USER = "kandang";
-const PASS = "Firman1502";
-const MAX_DEPTH = 200;
+const MQTT_URL = "wss://86d0fa0f82ae46da8385c68ee23959f5.s1.eu.hivemq.cloud:8884";
+const MQTT_OPTIONS = {
+  protocol: "wss",
+  path: "/mqtt",
+  username: "kandang",
+  password: "Firman1502",
+  keepalive: 30,
+  reconnectPeriod: 2000,
+  clean: true
+};
 
-/* CONNECT */
-const client = mqtt.connect(MQTT_URL, {
-  username: USER,
-  password: PASS
-});
+const TOPIC = "monitoring/air/level";
+const MAX_DEPTH_CM = 200;
+
+/* ================= CONNECT ================= */
+const client = mqtt.connect(MQTT_URL, MQTT_OPTIONS);
 
 client.on("connect", () => {
-  document.getElementById("status").innerText = "Live";
-  document.getElementById("status").className =
-    "px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs";
-  log("MQTT Connected");
+  console.log("MQTT CONNECTED");
   client.subscribe(TOPIC);
+  setStatus(true);
 });
 
-client.on("message", (topic, msg) => {
-  const distance = parseFloat(msg.toString());
-  const level = Math.max(0, MAX_DEPTH - distance);
-  const pct = Math.min(100, Math.round(level / MAX_DEPTH * 100));
+client.on("message", (topic, message) => {
+  const distance = parseFloat(message.toString());
+  if (isNaN(distance)) return;
 
-  document.getElementById("cm").innerText = distance;
-  document.getElementById("percentage").innerText = pct + "%";
-  document.getElementById("water-fill").style.height = pct + "%";
+  const waterHeight = Math.max(0, MAX_DEPTH_CM - distance);
+  const percent = Math.min(100, Math.round((waterHeight / MAX_DEPTH_CM) * 100));
 
-  const alert = document.getElementById("alert");
-  alert.innerText = pct > 80 ? "DANGER" : pct > 60 ? "WARNING" : "SAFE";
+  document.getElementById("water-cm").innerText = distance;
+  document.getElementById("water-percentage").innerText = percent + "%";
+  document.getElementById("water-fill").style.height = percent + "%";
+
+  const alert = document.getElementById("alert-status");
+  if (percent >= 80) {
+    alert.innerText = "CRITICAL";
+    alert.className = "text-sm font-bold text-red-500";
+  } else if (percent >= 60) {
+    alert.innerText = "WARNING";
+    alert.className = "text-sm font-bold text-yellow-400";
+  } else {
+    alert.innerText = "SAFE";
+    alert.className = "text-sm font-bold text-emerald-400";
+  }
 });
 
-function log(t){
-  const d=document.createElement("div");
-  d.innerText="> "+t;
-  document.getElementById("log").appendChild(d);
+client.on("error", (err) => {
+  console.error("MQTT ERROR:", err);
+  setStatus(false);
+});
+
+/* ================= UI STATUS ================= */
+function setStatus(online) {
+  const indicator = document.getElementById("status-indicator");
+  const text = document.getElementById("status-text");
+
+  if (!indicator || !text) return;
+
+  if (online) {
+    indicator.className =
+      "flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium";
+    text.innerText = "Live System";
+  } else {
+    indicator.className =
+      "flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium";
+    text.innerText = "Disconnected";
+  }
 }
 </script>
-
-</body>
-</html>
